@@ -41,7 +41,7 @@ globals = {
   
   getParam: function(name){
       const req = pm.request;
-      console.log("req=",req)
+      //console.log("req=",req)
       try{
           if(req.method === "GET"){
               return req.url.query.find(el => el.key === name);
@@ -75,7 +75,7 @@ globals = {
     if(utils.isEnabled(param)){
       const valueParam = getValues(param);
       if(decodeURIComponent(valueParam) == valueParam){
-        throw new Error(`Please, encode the ${valueParam} parameter`);
+        throw new Error(`apply "Encode URI Component" to '${param}' parameter`);
       }
     }
   },
@@ -141,6 +141,33 @@ globals = {
             throw new Error(`Value type of '${param}' must be of type '${type}'`);  
         }
       }
+    },
+
+    validateSchema: function(schema, param, pm){
+      const schemasBase = 'http://rauljimenez.info/arcgis-json-linter/schemas';
+      const schemaURL = `${schemasBase}/${schema}.schema.json`
+      
+      try{
+        pm.sendRequest(schemaURL, (err, res) => {         
+          var Ajv = require('ajv'),
+          ajv = new Ajv({ logger: console, allErrors: true });
+          let schema = JSON.parse(res.text());
+          let paramValue;
+          
+          try{
+            paramValue = JSON.parse(decodeURIComponent(utils.getParam(param).value))
+          }catch(e){
+            throw new Error(`invalid JSON object ${param}`);
+          }
+          if(!ajv.validate(schema, paramValue)){
+              throw new Error(`invalid JSON schema for '${param}': ${JSON.stringify(ajv.errors)}`);
+          }else{
+              console.log(`Valid JSON schema for '${param}'`)
+          }
+        });
+      }catch(e) {
+        throw new Error(`Error invalid ${param}: ${e}`);
+      }   
     }
   }
   
