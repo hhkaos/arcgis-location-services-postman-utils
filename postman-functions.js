@@ -18,8 +18,6 @@ globals = {
   checkIfCollectionsVarsAreSet: function(variables){
     variables.forEach(variable => {
       const varValue = pm.collectionVariables.get(variable);
-      console.log("varValue=",varValue)
-      console.log("typeof(varValue)=",typeof(varValue))
       if(typeof(varValue) === "undefined" || /^<.*>$/.test(varValue)){
         throw new Error("Set collection variables using requests in Structure and definitions");
       }
@@ -41,7 +39,6 @@ globals = {
   
   getParam: function(name){
       const req = pm.request;
-      //console.log("req=",req)
       try{
           if(req.method === "GET"){
               return req.url.query.find(el => el.key === name);
@@ -100,45 +97,66 @@ globals = {
   checkValueType: function(param, type){      
       if(utils.isEnabled(param)){
         const valueParam = utils.getParam(param);
-        let matchType = true;
+        let isType;
         const isJSON = str => {
             try {
                 if(typeof str === 'object'){
                     return true;    
-                }else if(typeof str === 'string' && str !== "1"){
+                }else if(typeof str === 'string' && isNaN(Number(str))){
                     JSON.parse(str);
                     return true;
                 }
                 return false;
             } catch (e) {
-                return true;
+                return false;
             }
         };
         
-        switch(type){
-            case 'integer':
-                if(!Number.isInteger(eval(valueParam.value))){
-                    matchType = false; 
-                }
-                break;
-            case 'object':
-                if(!isJSON(valueParam.value)){
-                    matchType = false; 
-                }
-                break;
-            case 'array':
-                if(!Array.isArray(eval(valueParam.value))){
-                    matchType = false; 
-                }
-                break;            
-            default:
-                const paramType = typeof valueParam.value;
-                if(paramType != type){
-                    matchType = false;
-                }
+        const value = decodeURIComponent(valueParam.value);
+        const myNum = Number(value);
+        if(/^-?\d*$/.test(value) && Number.isInteger(myNum)){
+          isType = 'integer';
+        }else if(/^-?\d*\.\d*$/.test(value)){
+          isType = 'float'; // or number
+        }else if(isJSON(value)){
+          isType = 'object';
+        }else if(Array.isArray(value)){
+          isType = 'array';
+        }else{
+          isType = 'string'
         }
-        if(!matchType){
-            throw new Error(`Value type of '${param}' must be of type '${type}'`);  
+        console.log(`${value} is of type '${isType}'`)
+
+        if(type === isType){
+          return true;
+        }
+        return false;
+      }
+    },
+    
+    forceValueType: function(params, type){      
+      params.forEach(el => {
+        if (utils.isEnabled(el)) {
+            if(!utils.checkValueType(el, type)){
+                throw new Error(`Value type of '${el}' must be of type '${type}'`)
+            }else{
+              console.log(`Value type of '${el}' is of type '${type}'`)
+            }
+        }
+     });
+    },
+
+    checkSearchExtent: function(){
+      if(utils.isEnabled("searchExtent")){
+        if(utils.checkValueType('searchExtent', 'object')){
+            utils.validateSchema('extent', 'searchExtent', pm);
+            utils.isURIEncoded("searchExtent");
+        }else if(utils.checkValueType('searchExtent', 'string')){
+            if(!/^(-?\d+\.?\d*,?){4}$/.test(utils.getParam('searchExtent').value)){
+                throw new Error(`when 'searchExtent' is a 'string' format is '<xmin>,<ymin>,<xmax>,<ymax>'`);    
+            }
+        }else{
+            throw new Error(`searchExtent needs to be string or object`);
         }
       }
     },
@@ -159,17 +177,36 @@ globals = {
           }catch(e){
             throw new Error(`'${param}' contains an invalid JSON object`);
           }
-          // if(paramValue.indexOf("\n")){
-          //   throw new Error(`remove breaklines from the JSON object`);
-          // }
-          if(!ajv.validate(schema, paramValue)){
-              throw new Error(`invalid JSON schema for '${param}': ${JSON.stringify(ajv.errors)}`);
+          const validate = ajv.compile(schema);
+          if(!validate(paramValue)){
+            const errors = [];
+            validate.errors.forEach(function(error) {
+              var message = '';
+        
+              switch(error.keyword) {
+                case 'required':
+                  // requirement not fulfilled.
+                  message = `Property '${error.params.missingProperty}' is missing`;
+                  break;
+                case 'type':
+                  message = `Wrong type: ${error.dataPath} ${error.message}`;
+                  break;
+                case 'additionalProperties':
+                  message = `'${error.params.additionalProperty}' property not valid`
+                  break;
+                default:
+                  message = `Unknown input error :( ${JSON.stringify(error)}`;
+              }
+
+              errors.push(message);
+            });
+            throw new Error(`invalid JSON schema for '${param}': ${errors.join('. ')}`);
           }else{
               console.log(`Valid JSON schema for '${param}'`)
           }
         });
       }catch(e) {
-        throw new Error(`Error invalid ${param}: ${e}`);
+        throw new Error(` Error invalid ${param}<br>: ${e}.`);
       }   
     }
   }
