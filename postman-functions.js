@@ -157,7 +157,7 @@ globals = {
           try{
             paramValue = JSON.parse(decodeURIComponent(utils.getParam(param).value))
           }catch(e){
-            throw new Error(`invalid JSON object ${param}`);
+            throw new Error(`'${param}' contains an invalid JSON object`);
           }
           if(!ajv.validate(schema, paramValue)){
               throw new Error(`invalid JSON schema for '${param}': ${JSON.stringify(ajv.errors)}`);
