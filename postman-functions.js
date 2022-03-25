@@ -159,9 +159,9 @@ globals = {
           }catch(e){
             throw new Error(`'${param}' contains an invalid JSON object`);
           }
-          if(paramValue.indexOf("\n")){
-            throw new Error(`remove breaklines from the JSON object`);
-          }
+          // if(paramValue.indexOf("\n")){
+          //   throw new Error(`remove breaklines from the JSON object`);
+          // }
           if(!ajv.validate(schema, paramValue)){
               throw new Error(`invalid JSON schema for '${param}': ${JSON.stringify(ajv.errors)}`);
           }else{
